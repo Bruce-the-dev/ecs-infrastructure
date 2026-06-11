@@ -1,0 +1,14 @@
+template-file-path: ./templates/alb-stack.yaml
+
+parameters:
+  ProjectName: ecs-cicd
+  NetworkStackName: ecs-infrastructure-network
+  SecurityStackName: ecs-infrastructure-security
+  ContainerPort: 8080
+  HealthCheckPath: /hello
+
+tags:
+  Project: ecs-cicd
+  ManagedBy: GitSync
+  Stack: alb
+  Module: containers-aws
