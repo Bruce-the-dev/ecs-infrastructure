@@ -1,0 +1,229 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS cluster, task definition, and service running on Fargate for ecs-cicd lab
+
+# ============================================================
+# Parameters
+# ============================================================
+Parameters:
+  ProjectName:
+    Type: String
+    Default: ecs-cicd
+
+  NetworkStackName:
+    Type: String
+    Default: ecs-infrastructure-network
+
+  SecurityStackName:
+    Type: String
+    Default: ecs-infrastructure-security
+
+  AlbStackName:
+    Type: String
+    Default: ecs-infrastructure-alb
+
+  EcrRepositoryName:
+    Type: String
+    Default: helloapp
+
+  ImageTag:
+    Type: String
+    Description: ECR image tag to deploy (e.g., Bruce_DEV_helloapp-2d947ac)
+
+  ContainerPort:
+    Type: Number
+    Default: 8080
+
+  TaskCpu:
+    Type: String
+    Default: '512'
+    Description: Fargate task CPU units (256, 512, 1024, etc.)
+
+  TaskMemory:
+    Type: String
+    Default: '1024'
+    Description: Fargate task memory in MB (must be compatible with CPU)
+
+  DesiredCount:
+    Type: Number
+    Default: 1
+    Description: Initial number of running tasks
+
+# ============================================================
+# Resources
+# ============================================================
+Resources:
+
+  # ------------------------------------------------------------
+  # ECS Cluster
+  # ------------------------------------------------------------
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub '${ProjectName}-cluster'
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-cluster'
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ------------------------------------------------------------
+  # CloudWatch Log Group for container logs
+  # ------------------------------------------------------------
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${ProjectName}'
+      RetentionInDays: 7
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ------------------------------------------------------------
+  # Task Execution Role
+  # Used by ECS to start the task: pull image, write logs
+  # ------------------------------------------------------------
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-task-execution-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ------------------------------------------------------------
+  # Task Role
+  # Used by the container itself to call AWS APIs (empty for now)
+  # ------------------------------------------------------------
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-task-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ------------------------------------------------------------
+  # Task Definition
+  # ------------------------------------------------------------
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${ProjectName}-task'
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: !Sub '${ProjectName}-container'
+          Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EcrRepositoryName}:${ImageTag}'
+          Essential: true
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - !Sub 'wget --quiet --tries=1 --spider http://localhost:${ContainerPort}/hello || exit 1'
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ------------------------------------------------------------
+  # ECS Service
+  # ------------------------------------------------------------
+  EcsService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub '${ProjectName}-service'
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref TaskDefinition
+      LaunchType: FARGATE
+      DesiredCount: !Ref DesiredCount
+      DeploymentController:
+        Type: CODE_DEPLOY   # Required for blue/green deployments
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED  # Tasks are in private subnets
+          Subnets:
+            - Fn::ImportValue: !Sub '${NetworkStackName}-PrivateSubnet1'
+            - Fn::ImportValue: !Sub '${NetworkStackName}-PrivateSubnet2'
+          SecurityGroups:
+            - Fn::ImportValue: !Sub '${SecurityStackName}-EcsTaskSecurityGroup'
+      LoadBalancers:
+        - ContainerName: !Sub '${ProjectName}-container'
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn:
+            Fn::ImportValue: !Sub '${AlbStackName}-BlueTargetGroupArn'
+      HealthCheckGracePeriodSeconds: 60
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+# ============================================================
+# Outputs
+# ============================================================
+Outputs:
+  ClusterName:
+    Description: Name of the ECS cluster
+    Value: !Ref EcsCluster
+    Export:
+      Name: !Sub '${AWS::StackName}-ClusterName'
+
+  ClusterArn:
+    Description: ARN of the ECS cluster
+    Value: !GetAtt EcsCluster.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ClusterArn'
+
+  ServiceName:
+    Description: Name of the ECS service
+    Value: !GetAtt EcsService.Name
+    Export:
+      Name: !Sub '${AWS::StackName}-ServiceName'
+
+  TaskDefinitionArn:
+    Description: ARN of the task definition
+    Value: !Ref TaskDefinition
+    Export:
+      Name: !Sub '${AWS::StackName}-TaskDefinitionArn'
+
+  LogGroupName:
+    Description: CloudWatch log group for container logs
+    Value: !Ref LogGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-LogGroupName'
