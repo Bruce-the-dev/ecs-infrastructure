@@ -1,0 +1,190 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Security groups and VPC endpoints for the ecs-cicd-lab
+
+# ============================================================
+# Parameters
+# ============================================================
+Parameters:
+  ProjectName:
+    Type: String
+    Default: ecs-cicd
+    Description: Used as a prefix for all resource names
+
+  NetworkStackName:
+    Type: String
+    Default: ecs-infrastructure-network
+    Description: Name of the network stack to import values from
+
+  ContainerPort:
+    Type: Number
+    Default: 8080
+    Description: The port the container listens on
+
+# ============================================================
+# Resources
+# ============================================================
+Resources:
+
+  # ------------------------------------------------------------
+  # Security Group: Application Load Balancer
+  # Allows HTTP traffic from anywhere on the internet
+  # ------------------------------------------------------------
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${ProjectName}-alb-sg'
+      GroupDescription: Allow HTTP traffic from the internet to the ALB
+      VpcId:
+        Fn::ImportValue: !Sub '${NetworkStackName}-VpcId'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: HTTP from anywhere
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-alb-sg'
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ------------------------------------------------------------
+  # Security Group: ECS Tasks
+  # Allows traffic ONLY from the ALB security group
+  # ------------------------------------------------------------
+  EcsTaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${ProjectName}-ecs-task-sg'
+      GroupDescription: Allow traffic from ALB only
+      VpcId:
+        Fn::ImportValue: !Sub '${NetworkStackName}-VpcId'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-ecs-task-sg'
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # Separate ingress rule to avoid circular dependency with AlbSecurityGroup
+  EcsTaskIngressFromAlb:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref EcsTaskSecurityGroup
+      IpProtocol: tcp
+      FromPort: !Ref ContainerPort
+      ToPort: !Ref ContainerPort
+      SourceSecurityGroupId: !Ref AlbSecurityGroup
+      Description: !Sub 'Container port ${ContainerPort} from ALB only'
+
+  # ------------------------------------------------------------
+  # Security Group: VPC Endpoints
+  # Allows HTTPS (443) from ECS tasks ONLY
+  # ------------------------------------------------------------
+  VpcEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${ProjectName}-vpce-sg'
+      GroupDescription: Allow HTTPS from ECS tasks to VPC endpoints
+      VpcId:
+        Fn::ImportValue: !Sub '${NetworkStackName}-VpcId'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref EcsTaskSecurityGroup
+          Description: HTTPS from ECS tasks
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-vpce-sg'
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ------------------------------------------------------------
+  # VPC Endpoint: ECR API (Interface)
+  # ------------------------------------------------------------
+  EcrApiEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub '${NetworkStackName}-VpcId'
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ecr.api'
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - Fn::ImportValue: !Sub '${NetworkStackName}-PrivateSubnet1'
+        - Fn::ImportValue: !Sub '${NetworkStackName}-PrivateSubnet2'
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+
+  # ------------------------------------------------------------
+  # VPC Endpoint: ECR Docker (Interface)
+  # Used by Docker daemon to pull image layers
+  # ------------------------------------------------------------
+  EcrDkrEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub '${NetworkStackName}-VpcId'
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ecr.dkr'
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - Fn::ImportValue: !Sub '${NetworkStackName}-PrivateSubnet1'
+        - Fn::ImportValue: !Sub '${NetworkStackName}-PrivateSubnet2'
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+
+  # ------------------------------------------------------------
+  # VPC Endpoint: CloudWatch Logs (Interface)
+  # Lets ECS tasks ship logs to CloudWatch without internet
+  # ------------------------------------------------------------
+  LogsEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub '${NetworkStackName}-VpcId'
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.logs'
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - Fn::ImportValue: !Sub '${NetworkStackName}-PrivateSubnet1'
+        - Fn::ImportValue: !Sub '${NetworkStackName}-PrivateSubnet2'
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+
+  # ------------------------------------------------------------
+  # VPC Endpoint: S3 (Gateway - FREE!)
+  # ECR stores image layers in S3 internally
+  # ------------------------------------------------------------
+  S3GatewayEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub '${NetworkStackName}-VpcId'
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.s3'
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - Fn::ImportValue: !Sub '${NetworkStackName}-PrivateRouteTable1'
+        - Fn::ImportValue: !Sub '${NetworkStackName}-PrivateRouteTable2'
+
+# ============================================================
+# Outputs
+# ============================================================
+Outputs:
+  AlbSecurityGroupId:
+    Description: Security group for the ALB
+    Value: !Ref AlbSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-AlbSecurityGroup'
+
+  EcsTaskSecurityGroupId:
+    Description: Security group for ECS tasks
+    Value: !Ref EcsTaskSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-EcsTaskSecurityGroup'
+
+  VpcEndpointSecurityGroupId:
+    Description: Security group for VPC endpoints
+    Value: !Ref VpcEndpointSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-VpcEndpointSecurityGroup'
