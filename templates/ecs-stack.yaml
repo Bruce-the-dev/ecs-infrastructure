@@ -194,6 +194,34 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
+# ------------------------------------------------------------
+  # Auto Scaling Target (registers the service for auto scaling)
+  # ------------------------------------------------------------
+  ScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      ServiceNamespace: ecs
+      ScalableDimension: ecs:service:DesiredCount
+      ResourceId: !Sub 'service/${EcsCluster}/${EcsService.Name}'
+      MinCapacity: 1
+      MaxCapacity: 4
+      RoleARN: !Sub 'arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService'
+
+  # ------------------------------------------------------------
+  # Scaling Policy: Target tracking on CPU utilization
+  # ------------------------------------------------------------
+  CpuScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub '${ProjectName}-cpu-scaling-policy'
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: 70.0
+        ScaleInCooldown: 60
+        ScaleOutCooldown: 60
 # ============================================================
 # Outputs
 # ============================================================
@@ -227,3 +255,14 @@ Outputs:
     Value: !Ref LogGroup
     Export:
       Name: !Sub '${AWS::StackName}-LogGroupName'
+  ScalableTargetId:
+    Description: ID of the auto scaling target
+    Value: !Ref ScalableTarget
+    Export:
+      Name: !Sub '${AWS::StackName}-ScalableTargetId'
+
+  ScalingPolicyArn:
+    Description: ARN of the CPU scaling policy
+    Value: !Ref CpuScalingPolicy
+    Export:
+      Name: !Sub '${AWS::StackName}-ScalingPolicyArn'
