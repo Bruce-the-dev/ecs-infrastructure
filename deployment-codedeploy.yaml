@@ -1,0 +1,12 @@
+template-file-path: ./templates/codedeploy-stack.yaml
+
+parameters:
+  ProjectName: ecs-cicd
+  EcsStackName: ecs-infrastructure-ecs
+  AlbStackName: ecs-infrastructure-alb
+
+tags:
+  Project: ecs-cicd
+  ManagedBy: GitSync
+  Stack: codedeploy
+  Module: containers-aws
