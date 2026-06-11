@@ -1,30 +1,13 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: CodeDeploy application and deployment group for ECS blue/green deployments
 
-# ============================================================
-# Parameters
-# ============================================================
 Parameters:
   ProjectName:
     Type: String
     Default: ecs-cicd
 
-  EcsStackName:
-    Type: String
-    Default: ecs-infrastructure-ecs
-
-  AlbStackName:
-    Type: String
-    Default: ecs-infrastructure-alb
-
-# ============================================================
-# Resources
-# ============================================================
 Resources:
 
-  # ------------------------------------------------------------
-  # IAM Role for CodeDeploy to manage ECS deployments
-  # ------------------------------------------------------------
   CodeDeployServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -42,53 +25,61 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
-  # ------------------------------------------------------------
-  # CodeDeploy Application (ECS compute platform)
-  # ------------------------------------------------------------
   CodeDeployApplication:
     Type: AWS::CodeDeploy::Application
     Properties:
       ApplicationName: !Sub '${ProjectName}-codedeploy-app'
       ComputePlatform: ECS
 
-  # ------------------------------------------------------------
-  # CodeDeploy Deployment Group (blue/green configuration)
-  # ------------------------------------------------------------
   CodeDeployDeploymentGroup:
     Type: AWS::CodeDeploy::DeploymentGroup
     Properties:
       ApplicationName: !Ref CodeDeployApplication
       DeploymentGroupName: !Sub '${ProjectName}-deployment-group'
       ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
-
-      # Use the AWS-managed blue/green deployment config
       DeploymentConfigName: CodeDeployDefault.ECSAllAtOnce
-
       DeploymentStyle:
         DeploymentType: BLUE_GREEN
         DeploymentOption: WITH_TRAFFIC_CONTROL
-
-      # Auto-rollback on failed deployments
       AutoRollbackConfiguration:
         Enabled: true
         Events:
           - DEPLOYMENT_FAILURE
           - DEPLOYMENT_STOP_ON_ALARM
           - DEPLOYMENT_STOP_ON_REQUEST
-
-      # Blue/green specific configuration
       BlueGreenDeploymentConfiguration:
-        # Terminate blue tasks after this many minutes following successful traffic shift
         TerminateBlueInstancesOnDeploymentSuccess:
           Action: TERMINATE
           TerminationWaitTimeInMinutes: 5
-        # Start traffic shift automatically (don't require manual approval)
         DeploymentReadyOption:
           ActionOnTimeout: CONTINUE_DEPLOYMENT
-
-      # ECS service being deployed
       ECSServices:
-        - ClusterName:
-            Fn::ImportValue: !Sub '${EcsStackName}-ClusterName'
-          ServiceName:
-            Fn::ImportValue: !Sub '${EcsStackName}-ServiceName'
+        - ClusterName: !ImportValue ecs-infrastructure-ecs-ClusterName
+          ServiceName: !ImportValue ecs-infrastructure-ecs-ServiceName
+      LoadBalancerInfo:
+        TargetGroupPairInfoList:
+          - TargetGroups:
+              - Name: !ImportValue ecs-infrastructure-alb-BlueTargetGroupName
+              - Name: !ImportValue ecs-infrastructure-alb-GreenTargetGroupName
+            ProdTrafficRoute:
+              ListenerArns:
+                - !ImportValue ecs-infrastructure-alb-HttpListenerArn
+
+Outputs:
+  CodeDeployApplicationName:
+    Description: Name of the CodeDeploy application
+    Value: !Ref CodeDeployApplication
+    Export:
+      Name: !Sub '${AWS::StackName}-ApplicationName'
+
+  CodeDeployDeploymentGroupName:
+    Description: Name of the deployment group
+    Value: !Ref CodeDeployDeploymentGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-DeploymentGroupName'
+
+  CodeDeployServiceRoleArn:
+    Description: ARN of the CodeDeploy service role
+    Value: !GetAtt CodeDeployServiceRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ServiceRoleArn'
