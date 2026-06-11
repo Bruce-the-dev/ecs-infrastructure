@@ -7,7 +7,7 @@ Description: Multi-AZ VPC with public and private subnets for the helloapp ECS d
 Parameters:
   ProjectName:
     Type: String
-    Default: helloapp
+    Default: ecs-cicd
     Description: Used as a prefix for all resource names and tags
 
   VpcCidr:

@@ -1,10 +1,10 @@
 template-file-path: ./templates/network-stack.yaml
 
 parameters:
-  ProjectName: helloapp
+  ProjectName: ecs-cicd
 
 tags:
-  Project: helloapp
+  Project: ecs-cicd
   ManagedBy: GitSync
   Stack: network
   Module: containers-aws
