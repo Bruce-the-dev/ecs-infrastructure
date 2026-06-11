@@ -1,0 +1,10 @@
+template-file-path: ./templates/network-stack.yaml
+
+parameters:
+  ProjectName: helloapp
+
+tags:
+  Project: helloapp
+  ManagedBy: GitSync
+  Stack: network
+  Module: containers-aws
