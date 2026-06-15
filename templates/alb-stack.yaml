@@ -1,44 +1,39 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Application Load Balancer with blue/green target groups for the ecs-cicd lab
 
-# ============================================================
-# Parameters
-# ============================================================
 Parameters:
   ProjectName:
     Type: String
     Default: ecs-cicd
-    
+
   VpcId:
     Type: String
-    Description: ID of the VPC (provided by parent stack)
+    Description: VPC ID (passed from parent stack)
 
-  NetworkStackName:
+  PublicSubnet1:
     Type: String
-    Default: ecs-infrastructure-network
+    Description: Public subnet ID in AZ1 (passed from parent stack)
 
-  SecurityStackName:
+  PublicSubnet2:
     Type: String
-    Default: ecs-infrastructure-security
+    Description: Public subnet ID in AZ2 (passed from parent stack)
+
+  AlbSecurityGroup:
+    Type: String
+    Description: Security group ID for the ALB (passed from parent stack)
 
   ContainerPort:
     Type: Number
     Default: 8080
-    Description: The port the container listens on (target group will forward to this)
+    Description: The port the container listens on
 
   HealthCheckPath:
     Type: String
     Default: /hello
     Description: Path the ALB will use for health checks against ECS tasks
 
-# ============================================================
-# Resources
-# ============================================================
 Resources:
 
-  # ------------------------------------------------------------
-  # Application Load Balancer
-  # ------------------------------------------------------------
   ApplicationLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
@@ -47,28 +42,24 @@ Resources:
       Type: application
       IpAddressType: ipv4
       Subnets:
-        - Fn::ImportValue: !Sub '${NetworkStackName}-PublicSubnet1'
-        - Fn::ImportValue: !Sub '${NetworkStackName}-PublicSubnet2'
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
       SecurityGroups:
-        - Fn::ImportValue: !Sub '${SecurityStackName}-AlbSecurityGroup'
+        - !Ref AlbSecurityGroup
       Tags:
         - Key: Name
           Value: !Sub '${ProjectName}-alb'
         - Key: Project
           Value: !Ref ProjectName
 
-  # ------------------------------------------------------------
-  # Target Group: BLUE (initial production traffic)
-  # ------------------------------------------------------------
   BlueTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Name: !Sub '${ProjectName}-tg-blue'
-      VpcId:
-        Fn::ImportValue: !Sub '${NetworkStackName}-VpcId'
+      VpcId: !Ref VpcId
       Port: !Ref ContainerPort
       Protocol: HTTP
-      TargetType: ip  # MUST be 'ip' for Fargate (Fargate tasks have ENIs with IPs)
+      TargetType: ip
       HealthCheckPath: !Ref HealthCheckPath
       HealthCheckProtocol: HTTP
       HealthCheckPort: traffic-port
@@ -87,15 +78,11 @@ Resources:
         - Key: Color
           Value: blue
 
-  # ------------------------------------------------------------
-  # Target Group: GREEN (used during blue/green deployments)
-  # ------------------------------------------------------------
   GreenTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Name: !Sub '${ProjectName}-tg-green'
-      VpcId:
-        Fn::ImportValue: !Sub '${NetworkStackName}-VpcId'
+      VpcId: !Ref VpcId
       Port: !Ref ContainerPort
       Protocol: HTTP
       TargetType: ip
@@ -117,9 +104,6 @@ Resources:
         - Key: Color
           Value: green
 
-  # ------------------------------------------------------------
-  # Listener: HTTP port 80 → initially forwards to BLUE
-  # ------------------------------------------------------------
   HttpListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -130,35 +114,31 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref BlueTargetGroup
 
-# ============================================================
-# Outputs
-# ============================================================
 Outputs:
   AlbDnsName:
-    Description: Public DNS name of the ALB (use this to access the app)
+    Description: Public DNS name of the ALB
     Value: !GetAtt ApplicationLoadBalancer.DNSName
-    
+
   AlbArn:
     Description: ARN of the ALB
     Value: !Ref ApplicationLoadBalancer
-    
+
   HttpListenerArn:
-    Description: ARN of the HTTP listener (CodeDeploy will manipulate this for blue/green)
+    Description: ARN of the HTTP listener
     Value: !Ref HttpListener
-    
+
   BlueTargetGroupArn:
     Description: ARN of the blue target group
     Value: !Ref BlueTargetGroup
-    
+
   GreenTargetGroupArn:
     Description: ARN of the green target group
     Value: !Ref GreenTargetGroup
-    
+
   BlueTargetGroupName:
-    Description: Name of the blue target group (CodeDeploy needs the name, not just ARN)
+    Description: Name of the blue target group
     Value: !GetAtt BlueTargetGroup.TargetGroupName
-    
+
   GreenTargetGroupName:
     Description: Name of the green target group
     Value: !GetAtt GreenTargetGroup.TargetGroupName
-    

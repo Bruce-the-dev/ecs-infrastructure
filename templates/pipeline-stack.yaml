@@ -28,10 +28,6 @@ Parameters:
     Type: String
     Description: ARN of the CodeStar connection to GitHub
 
-  VpcId:
-    Type: String
-    Description: ID of the VPC (provided by parent stack)
-    
 Resources:
 
   # ------------------------------------------------------------

@@ -10,10 +10,6 @@ Parameters:
     Default: ecs-cicd
     Description: Used as a prefix for all resource names and tags
 
-  VpcId:
-    Type: String
-    Description: ID of the VPC (provided by parent stack)
-
   VpcCidr:
     Type: String
     Default: 10.0.0.0/16

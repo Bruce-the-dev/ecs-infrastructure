@@ -1,37 +1,35 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: ECS cluster, task definition, and service running on Fargate for ecs-cicd lab
 
-# ============================================================
-# Parameters
-# ============================================================
 Parameters:
   ProjectName:
     Type: String
     Default: ecs-cicd
-  
-  VpcId:
-    Type: String
-    Description: ID of the VPC (provided by parent stack)
-
-  NetworkStackName:
-    Type: String
-    Default: ecs-infrastructure-network
-
-  SecurityStackName:
-    Type: String
-    Default: ecs-infrastructure-security
-
-  AlbStackName:
-    Type: String
-    Default: ecs-infrastructure-alb
 
   EcrRepositoryName:
     Type: String
-    Default: helloapp
+    Description: Name of the ECR repository (passed from parent stack)
 
   ImageTag:
     Type: String
-    Description: ECR image tag to deploy (e.g., Bruce_DEV_helloapp-2d947ac)
+    Default: latest
+    Description: ECR image tag to deploy
+
+  PrivateSubnet1:
+    Type: String
+    Description: Private subnet ID in AZ1 (passed from parent stack)
+
+  PrivateSubnet2:
+    Type: String
+    Description: Private subnet ID in AZ2 (passed from parent stack)
+
+  EcsTaskSecurityGroup:
+    Type: String
+    Description: Security group ID for ECS tasks (passed from parent stack)
+
+  BlueTargetGroupArn:
+    Type: String
+    Description: ARN of the blue target group (passed from parent stack)
 
   ContainerPort:
     Type: Number
@@ -40,26 +38,17 @@ Parameters:
   TaskCpu:
     Type: String
     Default: '512'
-    Description: Fargate task CPU units (256, 512, 1024, etc.)
 
   TaskMemory:
     Type: String
     Default: '1024'
-    Description: Fargate task memory in MB (must be compatible with CPU)
 
   DesiredCount:
     Type: Number
     Default: 1
-    Description: Initial number of running tasks
 
-# ============================================================
-# Resources
-# ============================================================
 Resources:
 
-  # ------------------------------------------------------------
-  # ECS Cluster
-  # ------------------------------------------------------------
   EcsCluster:
     Type: AWS::ECS::Cluster
     Properties:
@@ -73,9 +62,6 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
-  # ------------------------------------------------------------
-  # CloudWatch Log Group for container logs
-  # ------------------------------------------------------------
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -85,10 +71,6 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
-  # ------------------------------------------------------------
-  # Task Execution Role
-  # Used by ECS to start the task: pull image, write logs
-  # ------------------------------------------------------------
   TaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -106,10 +88,6 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
-  # ------------------------------------------------------------
-  # Task Role
-  # Used by the container itself to call AWS APIs (empty for now)
-  # ------------------------------------------------------------
   TaskRole:
     Type: AWS::IAM::Role
     Properties:
@@ -125,9 +103,6 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
-  # ------------------------------------------------------------
-  # Task Definition
-  # ------------------------------------------------------------
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -164,9 +139,6 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
-  # ------------------------------------------------------------
-  # ECS Service
-  # ------------------------------------------------------------
   EcsService:
     Type: AWS::ECS::Service
     Properties:
@@ -176,31 +148,27 @@ Resources:
       LaunchType: FARGATE
       DesiredCount: !Ref DesiredCount
       DeploymentController:
-        Type: CODE_DEPLOY   # Required for blue/green deployments
+        Type: CODE_DEPLOY
       DeploymentConfiguration:
         MinimumHealthyPercent: 100
         MaximumPercent: 200
       NetworkConfiguration:
         AwsvpcConfiguration:
-          AssignPublicIp: DISABLED  # Tasks are in private subnets
+          AssignPublicIp: DISABLED
           Subnets:
-            - Fn::ImportValue: !Sub '${NetworkStackName}-PrivateSubnet1'
-            - Fn::ImportValue: !Sub '${NetworkStackName}-PrivateSubnet2'
+            - !Ref PrivateSubnet1
+            - !Ref PrivateSubnet2
           SecurityGroups:
-            - Fn::ImportValue: !Sub '${SecurityStackName}-EcsTaskSecurityGroup'
+            - !Ref EcsTaskSecurityGroup
       LoadBalancers:
         - ContainerName: !Sub '${ProjectName}-container'
           ContainerPort: !Ref ContainerPort
-          TargetGroupArn:
-            Fn::ImportValue: !Sub '${AlbStackName}-BlueTargetGroupArn'
+          TargetGroupArn: !Ref BlueTargetGroupArn
       HealthCheckGracePeriodSeconds: 60
       Tags:
         - Key: Project
           Value: !Ref ProjectName
 
-# ------------------------------------------------------------
-  # Auto Scaling Target (registers the service for auto scaling)
-  # ------------------------------------------------------------
   ScalableTarget:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
     Properties:
@@ -211,9 +179,6 @@ Resources:
       MaxCapacity: 4
       RoleARN: !Sub 'arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService'
 
-  # ------------------------------------------------------------
-  # Scaling Policy: Target tracking on CPU utilization
-  # ------------------------------------------------------------
   CpuScalingPolicy:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties:
@@ -226,35 +191,24 @@ Resources:
         TargetValue: 70.0
         ScaleInCooldown: 60
         ScaleOutCooldown: 60
-# ============================================================
-# Outputs
-# ============================================================
+
 Outputs:
   ClusterName:
     Description: Name of the ECS cluster
     Value: !Ref EcsCluster
-   
+
   ClusterArn:
     Description: ARN of the ECS cluster
     Value: !GetAtt EcsCluster.Arn
-   
+
   ServiceName:
     Description: Name of the ECS service
     Value: !GetAtt EcsService.Name
-   
+
   TaskDefinitionArn:
     Description: ARN of the task definition
     Value: !Ref TaskDefinition
-   
+
   LogGroupName:
     Description: CloudWatch log group for container logs
     Value: !Ref LogGroup
-   
-  ScalableTargetId:
-    Description: ID of the auto scaling target
-    Value: !Ref ScalableTarget
-   
-  ScalingPolicyArn:
-    Description: ARN of the CPU scaling policy
-    Value: !Ref CpuScalingPolicy
-   

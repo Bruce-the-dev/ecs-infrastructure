@@ -133,8 +133,6 @@ Resources:
         AppRepoName: !Ref AppRepoName
         AppRepoBranch: !Ref AppRepoBranch
         CodeStarConnectionArn: !Ref CodeStarConnectionArn
-        CodeDeployApplicationName: !GetAtt CodeDeployStack.Outputs.ApplicationName
-        CodeDeployDeploymentGroupName: !GetAtt CodeDeployStack.Outputs.DeploymentGroupName
 
 Outputs:
   AlbDnsName:
