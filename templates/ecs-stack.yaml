@@ -8,6 +8,10 @@ Parameters:
   ProjectName:
     Type: String
     Default: ecs-cicd
+  
+  VpcId:
+    Type: String
+    Description: ID of the VPC (provided by parent stack)
 
   NetworkStackName:
     Type: String
@@ -229,40 +233,28 @@ Outputs:
   ClusterName:
     Description: Name of the ECS cluster
     Value: !Ref EcsCluster
-    Export:
-      Name: !Sub '${AWS::StackName}-ClusterName'
-
+   
   ClusterArn:
     Description: ARN of the ECS cluster
     Value: !GetAtt EcsCluster.Arn
-    Export:
-      Name: !Sub '${AWS::StackName}-ClusterArn'
-
+   
   ServiceName:
     Description: Name of the ECS service
     Value: !GetAtt EcsService.Name
-    Export:
-      Name: !Sub '${AWS::StackName}-ServiceName'
-
+   
   TaskDefinitionArn:
     Description: ARN of the task definition
     Value: !Ref TaskDefinition
-    Export:
-      Name: !Sub '${AWS::StackName}-TaskDefinitionArn'
-
+   
   LogGroupName:
     Description: CloudWatch log group for container logs
     Value: !Ref LogGroup
-    Export:
-      Name: !Sub '${AWS::StackName}-LogGroupName'
+   
   ScalableTargetId:
     Description: ID of the auto scaling target
     Value: !Ref ScalableTarget
-    Export:
-      Name: !Sub '${AWS::StackName}-ScalableTargetId'
-
+   
   ScalingPolicyArn:
     Description: ARN of the CPU scaling policy
     Value: !Ref CpuScalingPolicy
-    Export:
-      Name: !Sub '${AWS::StackName}-ScalingPolicyArn'
+   

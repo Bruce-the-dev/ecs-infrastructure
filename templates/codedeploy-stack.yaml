@@ -5,7 +5,26 @@ Parameters:
   ProjectName:
     Type: String
     Default: ecs-cicd
+  ClusterName:
+    Type: String
+    Description: Name of the ECS cluster (passed from parent stack)
 
+  ServiceName:
+    Type: String
+    Description: Name of the ECS service (passed from parent stack)
+
+  BlueTargetGroupName:
+    Type: String
+    Description: Name of the blue target group (passed from parent stack)
+
+  GreenTargetGroupName:
+    Type: String
+    Description: Name of the green target group (passed from parent stack)
+
+  HttpListenerArn:
+    Type: String
+    Description: ARN of the ALB HTTP listener (passed from parent stack)
+    
 Resources:
 
   CodeDeployServiceRole:
@@ -54,32 +73,27 @@ Resources:
         DeploymentReadyOption:
           ActionOnTimeout: CONTINUE_DEPLOYMENT
       ECSServices:
-        - ClusterName: !ImportValue ecs-infrastructure-ecs-ClusterName
-          ServiceName: !ImportValue ecs-infrastructure-ecs-ServiceName
+        - ClusterName: !Ref ClusterName
+          ServiceName: !Ref ServiceName
       LoadBalancerInfo:
         TargetGroupPairInfoList:
           - TargetGroups:
-              - Name: !ImportValue ecs-infrastructure-alb-BlueTargetGroupName
-              - Name: !ImportValue ecs-infrastructure-alb-GreenTargetGroupName
+              - Name: !Ref BlueTargetGroupName
+              - Name: !Ref GreenTargetGroupName
             ProdTrafficRoute:
               ListenerArns:
-                - !ImportValue ecs-infrastructure-alb-HttpListenerArn
+                - !Ref HttpListenerArn
 
 Outputs:
   CodeDeployApplicationName:
     Description: Name of the CodeDeploy application
     Value: !Ref CodeDeployApplication
-    Export:
-      Name: !Sub '${AWS::StackName}-ApplicationName'
-
+   
   CodeDeployDeploymentGroupName:
     Description: Name of the deployment group
     Value: !Ref CodeDeployDeploymentGroup
-    Export:
-      Name: !Sub '${AWS::StackName}-DeploymentGroupName'
-
+   
   CodeDeployServiceRoleArn:
     Description: ARN of the CodeDeploy service role
     Value: !GetAtt CodeDeployServiceRole.Arn
-    Export:
-      Name: !Sub '${AWS::StackName}-ServiceRoleArn'
+   

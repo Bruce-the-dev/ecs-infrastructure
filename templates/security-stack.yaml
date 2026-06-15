@@ -9,6 +9,9 @@ Parameters:
     Type: String
     Default: ecs-cicd
     Description: Used as a prefix for all resource names
+  VpcId:
+    Type: String
+    Description: ID of the VPC (provided by parent stack)
 
   NetworkStackName:
     Type: String
@@ -174,17 +177,14 @@ Outputs:
   AlbSecurityGroupId:
     Description: Security group for the ALB
     Value: !Ref AlbSecurityGroup
-    Export:
-      Name: !Sub '${AWS::StackName}-AlbSecurityGroup'
+   
 
   EcsTaskSecurityGroupId:
     Description: Security group for ECS tasks
     Value: !Ref EcsTaskSecurityGroup
-    Export:
-      Name: !Sub '${AWS::StackName}-EcsTaskSecurityGroup'
+   
 
   VpcEndpointSecurityGroupId:
     Description: Security group for VPC endpoints
     Value: !Ref VpcEndpointSecurityGroup
-    Export:
-      Name: !Sub '${AWS::StackName}-VpcEndpointSecurityGroup'
+   

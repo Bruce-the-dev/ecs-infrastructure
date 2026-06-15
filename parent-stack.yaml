@@ -1,0 +1,150 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Parent stack orchestrating all ecs-cicd infrastructure components
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: ecs-cicd
+
+  TemplateBucketName:
+    Type: String
+    Description: S3 bucket containing the nested templates
+
+  AppRepoOwner:
+    Type: String
+    Default: Bruce-the-dev
+
+  AppRepoName:
+    Type: String
+    Default: ecs_ci-cd_lab
+
+  AppRepoBranch:
+    Type: String
+    Default: main
+
+  CodeStarConnectionArn:
+    Type: String
+    Description: ARN of the CodeStar connection to GitHub
+
+  EcrImageTag:
+    Type: String
+    Default: latest
+    Description: ECR image tag to deploy
+
+Resources:
+
+  # ------------------------------------------------------------
+  # 1. ECR Repository
+  # ------------------------------------------------------------
+  EcrStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplateBucketName}.s3.${AWS::Region}.amazonaws.com/templates/ecr-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        RepositoryName: !Sub '${ProjectName}-app'
+
+  # ------------------------------------------------------------
+  # 2. Network (VPC, subnets, route tables)
+  # ------------------------------------------------------------
+  NetworkStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplateBucketName}.s3.${AWS::Region}.amazonaws.com/templates/network-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+
+  # ------------------------------------------------------------
+  # 3. Security (security groups, VPC endpoints)
+  # ------------------------------------------------------------
+  SecurityStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: NetworkStack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplateBucketName}.s3.${AWS::Region}.amazonaws.com/templates/security-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        VpcId: !GetAtt NetworkStack.Outputs.VpcId
+        PrivateSubnet1: !GetAtt NetworkStack.Outputs.PrivateSubnet1Id
+        PrivateSubnet2: !GetAtt NetworkStack.Outputs.PrivateSubnet2Id
+        PrivateRouteTable1: !GetAtt NetworkStack.Outputs.PrivateRouteTable1Id
+        PrivateRouteTable2: !GetAtt NetworkStack.Outputs.PrivateRouteTable2Id
+
+  # ------------------------------------------------------------
+  # 4. ALB + target groups
+  # ------------------------------------------------------------
+  AlbStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: SecurityStack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplateBucketName}.s3.${AWS::Region}.amazonaws.com/templates/alb-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        VpcId: !GetAtt NetworkStack.Outputs.VpcId
+        PublicSubnet1: !GetAtt NetworkStack.Outputs.PublicSubnet1Id
+        PublicSubnet2: !GetAtt NetworkStack.Outputs.PublicSubnet2Id
+        AlbSecurityGroup: !GetAtt SecurityStack.Outputs.AlbSecurityGroupId
+
+  # ------------------------------------------------------------
+  # 5. ECS cluster + service + auto scaling
+  # ------------------------------------------------------------
+  EcsStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: AlbStack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplateBucketName}.s3.${AWS::Region}.amazonaws.com/templates/ecs-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        EcrRepositoryName: !GetAtt EcrStack.Outputs.RepositoryName
+        ImageTag: !Ref EcrImageTag
+        PrivateSubnet1: !GetAtt NetworkStack.Outputs.PrivateSubnet1Id
+        PrivateSubnet2: !GetAtt NetworkStack.Outputs.PrivateSubnet2Id
+        EcsTaskSecurityGroup: !GetAtt SecurityStack.Outputs.EcsTaskSecurityGroupId
+        BlueTargetGroupArn: !GetAtt AlbStack.Outputs.BlueTargetGroupArn
+
+  # ------------------------------------------------------------
+  # 6. CodeDeploy app + deployment group
+  # ------------------------------------------------------------
+  CodeDeployStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: EcsStack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplateBucketName}.s3.${AWS::Region}.amazonaws.com/templates/codedeploy-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        ClusterName: !GetAtt EcsStack.Outputs.ClusterName
+        ServiceName: !GetAtt EcsStack.Outputs.ServiceName
+        BlueTargetGroupName: !GetAtt AlbStack.Outputs.BlueTargetGroupName
+        GreenTargetGroupName: !GetAtt AlbStack.Outputs.GreenTargetGroupName
+        HttpListenerArn: !GetAtt AlbStack.Outputs.HttpListenerArn
+
+  # ------------------------------------------------------------
+  # 7. CodePipeline + EventBridge
+  # ------------------------------------------------------------
+  PipelineStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: CodeDeployStack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplateBucketName}.s3.${AWS::Region}.amazonaws.com/templates/pipeline-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        EcrRepositoryName: !GetAtt EcrStack.Outputs.RepositoryName
+        AppRepoOwner: !Ref AppRepoOwner
+        AppRepoName: !Ref AppRepoName
+        AppRepoBranch: !Ref AppRepoBranch
+        CodeStarConnectionArn: !Ref CodeStarConnectionArn
+        CodeDeployApplicationName: !GetAtt CodeDeployStack.Outputs.ApplicationName
+        CodeDeployDeploymentGroupName: !GetAtt CodeDeployStack.Outputs.DeploymentGroupName
+
+Outputs:
+  AlbDnsName:
+    Description: ALB DNS name (use this to access the application)
+    Value: !GetAtt AlbStack.Outputs.AlbDnsName
+
+  EcrRepositoryUri:
+    Description: ECR repository URI
+    Value: !GetAtt EcrStack.Outputs.RepositoryUri
+
+  PipelineName:
+    Description: CodePipeline name
+    Value: !GetAtt PipelineStack.Outputs.PipelineName 

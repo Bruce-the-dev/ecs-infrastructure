@@ -28,6 +28,10 @@ Parameters:
     Type: String
     Description: ARN of the CodeStar connection to GitHub
 
+  VpcId:
+    Type: String
+    Description: ID of the VPC (provided by parent stack)
+    
 Resources:
 
   # ------------------------------------------------------------
@@ -231,11 +235,7 @@ Outputs:
   PipelineName:
     Description: Name of the CodePipeline
     Value: !Ref Pipeline
-    Export:
-      Name: !Sub '${AWS::StackName}-PipelineName'
 
   ArtifactBucketName:
     Description: S3 bucket for pipeline artifacts
     Value: !Ref ArtifactBucket
-    Export:
-      Name: !Sub '${AWS::StackName}-ArtifactBucket'

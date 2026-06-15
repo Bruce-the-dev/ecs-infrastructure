@@ -8,6 +8,10 @@ Parameters:
   ProjectName:
     Type: String
     Default: ecs-cicd
+    
+  VpcId:
+    Type: String
+    Description: ID of the VPC (provided by parent stack)
 
   NetworkStackName:
     Type: String
@@ -133,41 +137,28 @@ Outputs:
   AlbDnsName:
     Description: Public DNS name of the ALB (use this to access the app)
     Value: !GetAtt ApplicationLoadBalancer.DNSName
-    Export:
-      Name: !Sub '${AWS::StackName}-AlbDnsName'
-
+    
   AlbArn:
     Description: ARN of the ALB
     Value: !Ref ApplicationLoadBalancer
-    Export:
-      Name: !Sub '${AWS::StackName}-AlbArn'
-
+    
   HttpListenerArn:
     Description: ARN of the HTTP listener (CodeDeploy will manipulate this for blue/green)
     Value: !Ref HttpListener
-    Export:
-      Name: !Sub '${AWS::StackName}-HttpListenerArn'
-
+    
   BlueTargetGroupArn:
     Description: ARN of the blue target group
     Value: !Ref BlueTargetGroup
-    Export:
-      Name: !Sub '${AWS::StackName}-BlueTargetGroupArn'
-
+    
   GreenTargetGroupArn:
     Description: ARN of the green target group
     Value: !Ref GreenTargetGroup
-    Export:
-      Name: !Sub '${AWS::StackName}-GreenTargetGroupArn'
-
+    
   BlueTargetGroupName:
     Description: Name of the blue target group (CodeDeploy needs the name, not just ARN)
     Value: !GetAtt BlueTargetGroup.TargetGroupName
-    Export:
-      Name: !Sub '${AWS::StackName}-BlueTargetGroupName'
-
+    
   GreenTargetGroupName:
     Description: Name of the green target group
     Value: !GetAtt GreenTargetGroup.TargetGroupName
-    Export:
-      Name: !Sub '${AWS::StackName}-GreenTargetGroupName'
+    

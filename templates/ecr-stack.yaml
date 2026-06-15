@@ -1,0 +1,47 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECR repository for the ecs-cicd lab
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: ecs-cicd
+
+  RepositoryName:
+    Type: String
+    Default: ecs-cicd-app
+    Description: Name of the ECR repository
+
+Resources:
+  EcrRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref RepositoryName
+      ImageTagMutability: MUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      Tags:
+        - Key: Name
+          Value: !Ref RepositoryName
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: ManagedBy
+          Value: CloudFormation
+        - Key: Module
+          Value: containers-aws
+
+Outputs:
+  RepositoryName:
+    Description: Name of the ECR repository
+    Value: !Ref EcrRepository
+    
+  RepositoryUri:
+    Description: URI of the ECR repository
+    Value: !GetAtt EcrRepository.RepositoryUri
+    
+
+  RepositoryArn:
+    Description: ARN of the ECR repository
+    Value: !GetAtt EcrRepository.Arn
+    

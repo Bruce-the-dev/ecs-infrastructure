@@ -1,0 +1,16 @@
+template-file-path: ./parent-stack.yaml
+
+parameters:
+  ProjectName: ecs-cicd
+  TemplateBucketName: 842676015206-ecs-cicd-templates
+  AppRepoOwner: Bruce-the-dev
+  AppRepoName: ecs_ci-cd_lab
+  AppRepoBranch: main
+  CodeStarConnectionArn: PASTE_YOUR_CONNECTION_ARN_HERE
+  EcrImageTag: latest
+
+tags:
+  Project: ecs-cicd
+  ManagedBy: GitSync
+  Architecture: nested
+  Module: containers-aws
