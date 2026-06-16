@@ -26,6 +26,11 @@ Parameters:
     Type: String
     Description: ARN of the CodeStar connection to GitHub
 
+  EcrRepositoryName:
+    Type: String
+    Default: ecs-cicd-app
+    Description: Name of the pre-existing ECR repository
+    
   EcrImageTag:
     Type: String
     Default: latest
@@ -84,7 +89,7 @@ Resources:
       TemplateURL: !Sub 'https://${TemplateBucketName}.s3.${AWS::Region}.amazonaws.com/templates/ecs-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
-        EcrRepositoryName: !GetAtt EcrStack.Outputs.RepositoryName
+        EcrRepositoryName: !Ref EcrRepositoryName
         ImageTag: !Ref EcrImageTag
         PrivateSubnet1: !GetAtt NetworkStack.Outputs.PrivateSubnet1Id
         PrivateSubnet2: !GetAtt NetworkStack.Outputs.PrivateSubnet2Id
@@ -117,7 +122,7 @@ Resources:
       TemplateURL: !Sub 'https://${TemplateBucketName}.s3.${AWS::Region}.amazonaws.com/templates/pipeline-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
-        EcrRepositoryName: !GetAtt EcrStack.Outputs.RepositoryName
+        EcrRepositoryName: !Ref EcrRepositoryName
         AppRepoOwner: !Ref AppRepoOwner
         AppRepoName: !Ref AppRepoName
         AppRepoBranch: !Ref AppRepoBranch
