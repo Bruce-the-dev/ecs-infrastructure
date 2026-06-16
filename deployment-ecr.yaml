@@ -1,0 +1,11 @@
+template-file-path: ./templates/ecr-stack.yaml
+
+parameters:
+  ProjectName: ecs-cicd
+  RepositoryName: ecs-cicd-app
+
+tags:
+  Project: ecs-cicd
+  ManagedBy: GitSync
+  Stack: ecr
+  Module: containers-aws

@@ -34,18 +34,7 @@ Parameters:
 Resources:
 
   # ------------------------------------------------------------
-  # 1. ECR Repository
-  # ------------------------------------------------------------
-  EcrStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub 'https://${TemplateBucketName}.s3.${AWS::Region}.amazonaws.com/templates/ecr-stack.yaml'
-      Parameters:
-        ProjectName: !Ref ProjectName
-        RepositoryName: !Sub '${ProjectName}-app'
-
-  # ------------------------------------------------------------
-  # 2. Network (VPC, subnets, route tables)
+  # 1. Network (VPC, subnets, route tables)
   # ------------------------------------------------------------
   NetworkStack:
     Type: AWS::CloudFormation::Stack
@@ -55,7 +44,7 @@ Resources:
         ProjectName: !Ref ProjectName
 
   # ------------------------------------------------------------
-  # 3. Security (security groups, VPC endpoints)
+  # 2. Security (security groups, VPC endpoints)
   # ------------------------------------------------------------
   SecurityStack:
     Type: AWS::CloudFormation::Stack
@@ -71,7 +60,7 @@ Resources:
         PrivateRouteTable2: !GetAtt NetworkStack.Outputs.PrivateRouteTable2Id
 
   # ------------------------------------------------------------
-  # 4. ALB + target groups
+  # 3. ALB + target groups
   # ------------------------------------------------------------
   AlbStack:
     Type: AWS::CloudFormation::Stack
@@ -86,7 +75,7 @@ Resources:
         AlbSecurityGroup: !GetAtt SecurityStack.Outputs.AlbSecurityGroupId
 
   # ------------------------------------------------------------
-  # 5. ECS cluster + service + auto scaling
+  # 4. ECS cluster + service + auto scaling
   # ------------------------------------------------------------
   EcsStack:
     Type: AWS::CloudFormation::Stack
@@ -103,7 +92,7 @@ Resources:
         BlueTargetGroupArn: !GetAtt AlbStack.Outputs.BlueTargetGroupArn
 
   # ------------------------------------------------------------
-  # 6. CodeDeploy app + deployment group
+  # 5. CodeDeploy app + deployment group
   # ------------------------------------------------------------
   CodeDeployStack:
     Type: AWS::CloudFormation::Stack
@@ -119,7 +108,7 @@ Resources:
         HttpListenerArn: !GetAtt AlbStack.Outputs.HttpListenerArn
 
   # ------------------------------------------------------------
-  # 7. CodePipeline + EventBridge
+  # 6. CodePipeline + EventBridge
   # ------------------------------------------------------------
   PipelineStack:
     Type: AWS::CloudFormation::Stack
@@ -139,9 +128,9 @@ Outputs:
     Description: ALB DNS name (use this to access the application)
     Value: !GetAtt AlbStack.Outputs.AlbDnsName
 
-  EcrRepositoryUri:
-    Description: ECR repository URI
-    Value: !GetAtt EcrStack.Outputs.RepositoryUri
+  EcrRepositoryName:
+    Description: ECR repository name
+    Value: !Ref EcrRepositoryName
 
   PipelineName:
     Description: CodePipeline name
