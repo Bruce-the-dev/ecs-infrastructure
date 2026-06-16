@@ -38,7 +38,6 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-      BucketName: !Sub '${ProjectName}-pipeline-artifacts-${AWS::AccountId}'
       VersioningConfiguration:
         Status: Enabled
       BucketEncryption:
