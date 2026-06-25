@@ -10,22 +10,6 @@ Parameters:
     Type: String
     Description: S3 bucket containing the nested templates
 
-  AppRepoOwner:
-    Type: String
-    Default: Bruce-the-dev
-
-  AppRepoName:
-    Type: String
-    Default: ecs_ci-cd_lab
-
-  AppRepoBranch:
-    Type: String
-    Default: main
-
-  CodeStarConnectionArn:
-    Type: String
-    Description: ARN of the CodeStar connection to GitHub
-
   EcrRepositoryName:
     Type: String
     Default: ecs-cicd-app
@@ -123,10 +107,6 @@ Resources:
       Parameters:
         ProjectName: !Ref ProjectName
         EcrRepositoryName: !Ref EcrRepositoryName
-        AppRepoOwner: !Ref AppRepoOwner
-        AppRepoName: !Ref AppRepoName
-        AppRepoBranch: !Ref AppRepoBranch
-        CodeStarConnectionArn: !Ref CodeStarConnectionArn
 
 Outputs:
   AlbDnsName:

@@ -8,32 +8,39 @@ Parameters:
 
   EcrRepositoryName:
     Type: String
-    Default: helloapp
-
-  AppRepoOwner:
-    Type: String
-    Default: Bruce-the-dev
-    Description: GitHub owner/org of the application repo
-
-  AppRepoName:
-    Type: String
-    Default: ecs_ci-cd_lab
-    Description: GitHub application repo name
-
-  AppRepoBranch:
-    Type: String
-    Default: main
-
-  CodeStarConnectionArn:
-    Type: String
-    Description: ARN of the CodeStar connection to GitHub
+    Default: ecs-cicd-app
 
 Resources:
 
   # ------------------------------------------------------------
-  # S3 bucket for pipeline artifacts
+  # S3 bucket for deployment artifacts (taskdef + appspec)
+  # Workflow uploads to this bucket; pipeline reads from it
   # ------------------------------------------------------------
-  ArtifactBucket:
+  DeploymentArtifactsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BucketName: !Sub '${ProjectName}-deployment-artifacts-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ------------------------------------------------------------
+  # S3 bucket for pipeline internal artifacts (auto-named)
+  # ------------------------------------------------------------
+  PipelineArtifactsBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
@@ -80,12 +87,10 @@ Resources:
                   - s3:GetBucketVersioning
                   - s3:ListBucket
                 Resource:
-                  - !GetAtt ArtifactBucket.Arn
-                  - !Sub '${ArtifactBucket.Arn}/*'
-              - Effect: Allow
-                Action:
-                  - codestar-connections:UseConnection
-                Resource: !Ref CodeStarConnectionArn
+                  - !GetAtt PipelineArtifactsBucket.Arn
+                  - !Sub '${PipelineArtifactsBucket.Arn}/*'
+                  - !GetAtt DeploymentArtifactsBucket.Arn
+                  - !Sub '${DeploymentArtifactsBucket.Arn}/*'
               - Effect: Allow
                 Action:
                   - codedeploy:CreateDeployment
@@ -146,22 +151,21 @@ Resources:
       RoleArn: !GetAtt CodePipelineRole.Arn
       ArtifactStore:
         Type: S3
-        Location: !Ref ArtifactBucket
+        Location: !Ref PipelineArtifactsBucket
       Stages:
-        # Stage 1: Pull source from the app repo (for taskdef.json + appspec.yaml)
+        # Stage 1: Pull deployment artifacts from S3 + image from ECR
         - Name: Source
           Actions:
-            - Name: AppSource
+            - Name: DeploymentArtifactSource
               ActionTypeId:
                 Category: Source
                 Owner: AWS
-                Provider: CodeStarSourceConnection
+                Provider: S3
                 Version: '1'
               Configuration:
-                ConnectionArn: !Ref CodeStarConnectionArn
-                FullRepositoryId: !Sub '${AppRepoOwner}/${AppRepoName}'
-                BranchName: !Ref AppRepoBranch
-                DetectChanges: 'false'
+                S3Bucket: !Ref DeploymentArtifactsBucket
+                S3ObjectKey: deployment-artifacts.zip
+                PollForSourceChanges: 'false'
               OutputArtifacts:
                 - Name: SourceArtifact
               RunOrder: 1
@@ -231,6 +235,10 @@ Outputs:
     Description: Name of the CodePipeline
     Value: !Ref Pipeline
 
-  ArtifactBucketName:
-    Description: S3 bucket for pipeline artifacts
-    Value: !Ref ArtifactBucket
+  DeploymentArtifactsBucketName:
+    Description: S3 bucket for deployment artifacts (taskdef + appspec)
+    Value: !Ref DeploymentArtifactsBucket
+
+  PipelineArtifactsBucketName:
+    Description: S3 bucket for pipeline internal artifacts
+    Value: !Ref PipelineArtifactsBucket
