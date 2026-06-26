@@ -15,4 +15,4 @@ All stacks are deployed via CloudFormation GitSync.
 
 ## Companion Repo
 
-Application code: https://github.com/Bruce-the-dev/ecs_ci-cd_lab 
+Application code: https://github.com/Bruce-the-dev/ecs_ci-cd_lab # trigger redeploy Fri, Jun 26, 2026 11:19:24 AM
