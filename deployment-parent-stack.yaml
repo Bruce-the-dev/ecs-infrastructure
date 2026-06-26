@@ -3,10 +3,6 @@ template-file-path: ./parent-stack.yaml
 parameters:
   ProjectName: ecs-cicd
   TemplateBucketName: 842676015206-ecs-cicd-templates
-  AppRepoOwner: Bruce-the-dev
-  AppRepoName: ecs_ci-cd_lab
-  AppRepoBranch: main
-  CodeStarConnectionArn:  arn:aws:codeconnections:eu-west-1:842676015206:connection/7afc6488-58d1-4d86-acbd-4befa2f07bdd
   EcrImageTag: latest
 
 tags:
